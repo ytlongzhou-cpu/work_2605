@@ -13,6 +13,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchSheets, fetchCells, saveCells } from './cellApi';
 import { restoreStyles, clearCellStyles } from './cellStyleStore';
+import { getFileById } from '../file-manager/fileApi';
 
 /** 默认表格行列数（空文件初始化大小） */
 const DEFAULT_ROWS = 100;
@@ -57,6 +58,9 @@ export function useSpreadsheet(fileId) {
   /** Sheet 列表 */
   const [sheets, setSheets] = useState([]);
 
+  /** 当前文件名（用于导出文件命名） */
+  const [fileName, setFileName] = useState('报表');
+
   /** 当前选中的 Sheet ID */
   const [currentSheetId, setCurrentSheetId] = useState(null);
 
@@ -95,8 +99,12 @@ export function useSpreadsheet(fileId) {
       setLoading(true);
       setError(null);
       try {
-        const sheetList = await fetchSheets(fileId);
+        const [sheetList, fileInfo] = await Promise.all([
+          fetchSheets(fileId),
+          getFileById(fileId),
+        ]);
         setSheets(sheetList);
+        if (fileInfo?.data?.name) setFileName(fileInfo.data.name);
         // 默认选中第一个 Sheet
         if (sheetList.length > 0) {
           setCurrentSheetId(sheetList[0].id);
@@ -202,6 +210,38 @@ export function useSpreadsheet(fileId) {
     setGridData([...gridRef.current]);
   }, []);
 
+  /**
+   * 应用远端行列结构变更（模块E收到 row:deleted / col:deleted / row:inserted / col:inserted 后调用）
+   * 直接操作 gridRef 内存数组，再触发 re-render
+   * @param {'row:delete'|'col:delete'|'row:insert'|'col:insert'} type
+   * @param {number} index  操作起始行/列索引（0-based）
+   * @param {number} amount 行/列数量
+   */
+  const applyRemoteStructureChange = useCallback((type, index, amount = 1) => {
+    const grid = gridRef.current;
+    if (type === 'row:delete') {
+      // 删除 [index, index+amount-1] 行
+      grid.splice(index, amount);
+    } else if (type === 'row:insert') {
+      // 在 index 处插入 amount 个空行
+      const colCount = grid[0]?.length || 26;
+      const emptyRows = Array.from({ length: amount }, () => new Array(colCount).fill(null));
+      grid.splice(index, 0, ...emptyRows);
+    } else if (type === 'col:delete') {
+      // 每行删除 [index, index+amount-1] 列
+      for (const row of grid) {
+        row.splice(index, amount);
+      }
+    } else if (type === 'col:insert') {
+      // 每行在 index 处插入 amount 个空列
+      for (const row of grid) {
+        row.splice(index, 0, ...new Array(amount).fill(null));
+      }
+    }
+    // 浅拷贝触发 React re-render
+    setGridData([...grid]);
+  }, []);
+
   // ── 组件卸载时清理定时器 ──────────────────────────────────────────────
   useEffect(() => {
     return () => {
@@ -211,6 +251,7 @@ export function useSpreadsheet(fileId) {
 
   return {
     sheets,
+    fileName,
     currentSheetId,
     setCurrentSheetId,
     gridData,
@@ -218,5 +259,6 @@ export function useSpreadsheet(fileId) {
     error,
     saveCell,
     applyRemoteChange,
+    applyRemoteStructureChange,
   };
 }

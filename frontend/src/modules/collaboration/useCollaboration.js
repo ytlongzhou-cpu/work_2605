@@ -72,6 +72,12 @@ export function useCollaboration(sheetId, onRemoteCellChange, externalSheetIdRef
   /** onRemoteStyleChange 回调 ref，由 CollabContext 注入 */
   const onRemoteStyleChangeRef = useRef(null);
 
+  /**
+   * onRemoteStructureChange 回调 ref，由模块D（表格编辑器）注入
+   * 签名：(type: 'row:delete'|'col:delete'|'row:insert'|'col:insert', index: number, amount: number) => void
+   */
+  const onRemoteStructureChangeRef = useRef(null);
+
   // ── 建立连接 & 绑定事件 ──────────────────────────────────────────────
   useEffect(() => {
     if (!token || !user) return;
@@ -156,6 +162,34 @@ export function useCollaboration(sheetId, onRemoteCellChange, externalSheetIdRef
       onRemoteStyleChangeRef.current?.(cells);
     };
 
+    // ── 收到远端删除行 ──
+    const handleRowDeleted = ({ userId: senderId, sheetId: sid, index, amount }) => {
+      if (Number(sid) !== getCurrentSid()) return;
+      if (senderId === user.id) return;
+      onRemoteStructureChangeRef.current?.('row:delete', index, amount);
+    };
+
+    // ── 收到远端删除列 ──
+    const handleColDeleted = ({ userId: senderId, sheetId: sid, index, amount }) => {
+      if (Number(sid) !== getCurrentSid()) return;
+      if (senderId === user.id) return;
+      onRemoteStructureChangeRef.current?.('col:delete', index, amount);
+    };
+
+    // ── 收到远端插入行 ──
+    const handleRowInserted = ({ userId: senderId, sheetId: sid, index, amount }) => {
+      if (Number(sid) !== getCurrentSid()) return;
+      if (senderId === user.id) return;
+      onRemoteStructureChangeRef.current?.('row:insert', index, amount);
+    };
+
+    // ── 收到远端插入列 ──
+    const handleColInserted = ({ userId: senderId, sheetId: sid, index, amount }) => {
+      if (Number(sid) !== getCurrentSid()) return;
+      if (senderId === user.id) return;
+      onRemoteStructureChangeRef.current?.('col:insert', index, amount);
+    };
+
     // ── 绑定所有事件 ──
     socket.on('connect',        handleConnect);
     socket.on('disconnect',     handleDisconnect);
@@ -166,6 +200,10 @@ export function useCollaboration(sheetId, onRemoteCellChange, externalSheetIdRef
     socket.on('cell:updated',   handleCellUpdated);
     socket.on('cursor:moved',   handleCursorMoved);
     socket.on('style:updated',  handleStyleUpdated);
+    socket.on('row:deleted',    handleRowDeleted);
+    socket.on('col:deleted',    handleColDeleted);
+    socket.on('row:inserted',   handleRowInserted);
+    socket.on('col:inserted',   handleColInserted);
 
     // 如果 socket 已经是连接状态（如 token 变化后重新执行 effect），
     // 直接触发一次 join 并更新连接状态
@@ -187,6 +225,10 @@ export function useCollaboration(sheetId, onRemoteCellChange, externalSheetIdRef
       socket.off('cell:updated',  handleCellUpdated);
       socket.off('cursor:moved',  handleCursorMoved);
       socket.off('style:updated', handleStyleUpdated);
+      socket.off('row:deleted',   handleRowDeleted);
+      socket.off('col:deleted',   handleColDeleted);
+      socket.off('row:inserted',  handleRowInserted);
+      socket.off('col:inserted',  handleColInserted);
     };
   }, [token, user]);
 
@@ -194,23 +236,28 @@ export function useCollaboration(sheetId, onRemoteCellChange, externalSheetIdRef
   const prevSheetIdRef = useRef(null);
 
   useEffect(() => {
-    const socket = getSocket();
-    if (!socket || !socket.connected) return;
-
     const prev = prevSheetIdRef.current;
     const next = sheetId;
+    // BUG FIX：必须先更新 prevSheetIdRef，再判断是否 return。
+    // 原逻辑在 socket 未连接时直接 return 且不更新 prev，
+    // 导致后续连接成功后 handleConnect 重新 join 了正确房间，
+    // 但 prevSheetIdRef 还是旧值，切换 sheet 时 room:leave 发给了错误的房间。
+    prevSheetIdRef.current = next;
+
+    const socket = getSocket();
+    // socket 未连接时直接 return：room:join 会由 handleConnect 负责补发
+    // （handleConnect 读取 sheetIdRef.current，始终是最新 sheetId）
+    if (!socket || !socket.connected) return;
+
+    if (!next) return;
 
     if (prev && prev !== next) {
       socket.emit('room:leave', { sheetId: prev });
     }
 
-    if (next) {
-      socket.emit('room:join', { sheetId: next });
-      setOnlineUsers([]);
-      setOtherCursors([]);
-    }
-
-    prevSheetIdRef.current = next;
+    socket.emit('room:join', { sheetId: next });
+    setOnlineUsers([]);
+    setOtherCursors([]);
   }, [sheetId]);
 
   // ── 登出时断开 Socket ────────────────────────────────────────────────
@@ -257,14 +304,67 @@ export function useCollaboration(sheetId, onRemoteCellChange, externalSheetIdRef
     socket.emit('style:update', { sheetId: sid, cells });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * 广播本地删除行给其他用户
+   * @param {number} index  起始行索引（0-based）
+   * @param {number} amount 删除行数
+   */
+  const broadcastRowDelete = useCallback((index, amount = 1) => {
+    const socket = getSocket();
+    const sid = externalSheetIdRef?.current ?? sheetIdRef.current;
+    if (!socket || !socket.connected || !sid) return;
+    socket.emit('row:delete', { sheetId: sid, index, amount });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * 广播本地删除列给其他用户
+   * @param {number} index  起始列索引（0-based）
+   * @param {number} amount 删除列数
+   */
+  const broadcastColDelete = useCallback((index, amount = 1) => {
+    const socket = getSocket();
+    const sid = externalSheetIdRef?.current ?? sheetIdRef.current;
+    if (!socket || !socket.connected || !sid) return;
+    socket.emit('col:delete', { sheetId: sid, index, amount });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * 广播本地插入行给其他用户
+   * @param {number} index  插入位置（0-based）
+   * @param {number} amount 插入行数
+   */
+  const broadcastRowInsert = useCallback((index, amount = 1) => {
+    const socket = getSocket();
+    const sid = externalSheetIdRef?.current ?? sheetIdRef.current;
+    if (!socket || !socket.connected || !sid) return;
+    socket.emit('row:insert', { sheetId: sid, index, amount });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * 广播本地插入列给其他用户
+   * @param {number} index  插入位置（0-based）
+   * @param {number} amount 插入列数
+   */
+  const broadcastColInsert = useCallback((index, amount = 1) => {
+    const socket = getSocket();
+    const sid = externalSheetIdRef?.current ?? sheetIdRef.current;
+    if (!socket || !socket.connected || !sid) return;
+    socket.emit('col:insert', { sheetId: sid, index, amount });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return {
     onlineUsers,
     globalOnlineUsers,
     socketConnected,
     otherCursors,
     onRemoteStyleChangeRef,
+    onRemoteStructureChangeRef,
     broadcastCellChange,
     broadcastCursorMove,
     broadcastStyleChange,
+    broadcastRowDelete,
+    broadcastColDelete,
+    broadcastRowInsert,
+    broadcastColInsert,
   };
 }

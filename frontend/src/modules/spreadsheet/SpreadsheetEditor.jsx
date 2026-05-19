@@ -28,6 +28,7 @@ import { useLayout } from '../layout/AppLayout';
 import CursorOverlay       from './CursorOverlay';
 import FormulaBar          from './FormulaBar';
 import SheetTabs           from './SheetTabs';
+import { exportGridToExcel, exportGridToCSV } from './exportExcel';
 
 registerAllModules();
 
@@ -216,7 +217,42 @@ const ICONS = {
   insertRow: <svg viewBox="0 0 16 16" width="14" height="14"><path d="M2 6h12v1H2V6zm0 4h9v1H2v-1zm0 4h9v1H2v-1zM15 4a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4zm-1 1v1h-2V5h2zM15 12a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h4zm-1 1v1h-2v-1h2zM15 8a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h4zm-1 1v1h-2V9h2z" fill="currentColor"/></svg>,
   deleteRow: <svg viewBox="0 0 16 16" width="14" height="14"><path d="M2 6h12v1H2V6zm0 4h12v1H2v-1zm3-7a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v1H5V3zm1 1v10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V4H6zM9 6v4H8V6h1zm2 0v4h-1V6h1z" fill="currentColor"/></svg>,
   insertCol: <svg viewBox="0 0 16 16" width="14" height="14"><path d="M6 2h1v12H6V2zm4 0h1v12h-1V2zm-7 3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm1 1v-1h-1v1h1zm9 6a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1zm1 1v-1h-1v1h1zM2 11a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-1zm1 1v-1h-1v1h1zm12-6a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1zm1 1v-1h-1v1h1z" fill="currentColor"/></svg>,
-  deleteCol: <svg viewBox="0 0 16 16" width="14" height="14"><path d="M6 2h1v12H6V2zm4 0h1v12h-1V2zM3 5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5zm1 1v4h2V6H4zm3 0v4h2V6H7z" fill="currentColor"/></svg>,
+  deleteCol:  <svg viewBox="0 0 16 16" width="14" height="14"><path d="M6 2h1v12H6V2zm4 0h1v12h-1V2zM3 5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5zm1 1v4h2V6H4zm3 0v4h2V6H7z" fill="currentColor"/></svg>,
+  exportXlsx: <svg viewBox="0 0 16 16" width="14" height="14"><path d="M9 1v4h4l-4-4zM3 1h5l4 4v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm1 7.5 1.5 2 1.5-2h1.2l-2.1 3 2.1 3H7l-1.5-2-1.5 2H2.8l2.1-3-2.1-3H4z" fill="currentColor"/></svg>,
+  exportCsv:  <svg viewBox="0 0 16 16" width="14" height="14"><path d="M9 1v4h4l-4-4zM3 1h5l4 4v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm2 6H4v3.5c0 .83.67 1.5 1.5 1.5S7 11.33 7 10.5H6c0 .28-.22.5-.5.5S5 10.78 5 10.5V9h2V8H5V7zm2.5 0c-.83 0-1.5.67-1.5 1.5v2c0 .83.67 1.5 1.5 1.5S9 11.33 9 10.5v-2C9 7.67 8.33 7 7.5 7zm0 1c.28 0 .5.22.5.5v2a.5.5 0 0 1-1 0v-2c0-.28.22-.5.5-.5zm2-.5v4h2.5v-1H11V7.5h-1z" fill="currentColor"/></svg>,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 导出面板
+// ─────────────────────────────────────────────────────────────────────────────
+function ExportPanel({ onExcel, onCsv, onClose }) {
+  return (
+    <div style={epSt.panel}>
+      <div style={epSt.title}>导出文件</div>
+      <button style={epSt.item} onClick={() => { onExcel(); onClose(); }}>
+        <span style={epSt.itemIcon}>📊</span>
+        <div>
+          <div style={epSt.itemLabel}>Excel 格式（.xlsx）</div>
+          <div style={epSt.itemDesc}>可用 Excel / WPS 打开</div>
+        </div>
+      </button>
+      <button style={epSt.item} onClick={() => { onCsv(); onClose(); }}>
+        <span style={epSt.itemIcon}>📄</span>
+        <div>
+          <div style={epSt.itemLabel}>CSV 格式（.csv）</div>
+          <div style={epSt.itemDesc}>纯文本，兼容所有表格软件</div>
+        </div>
+      </button>
+    </div>
+  );
+}
+const epSt = {
+  panel:    { position:'absolute', top:'100%', right:0, zIndex:9999, background:'#fff', border:'1px solid #d0d0d0', borderRadius:6, boxShadow:'0 4px 16px rgba(0,0,0,0.15)', padding:'8px 0', width:220, marginTop:2 },
+  title:    { fontSize:11, color:'#999', fontWeight:600, padding:'2px 12px 6px', borderBottom:'1px solid #f0f0f0', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.5px' },
+  item:     { display:'flex', alignItems:'center', gap:10, width:'100%', padding:'8px 12px', border:'none', background:'transparent', cursor:'pointer', textAlign:'left', transition:'background 0.12s' },
+  itemIcon: { fontSize:20, flexShrink:0 },
+  itemLabel:{ fontSize:13, color:'#222', fontWeight:500, marginBottom:1 },
+  itemDesc: { fontSize:11, color:'#888' },
 };
 
 function TBtn({ icon, title, active, onClick }) {
@@ -254,7 +290,7 @@ const tbSt = {
 // 主组件
 // ─────────────────────────────────────────────────────────────────────────────
 function SpreadsheetEditor({ fileId }) {
-  const { sheets, currentSheetId, setCurrentSheetId, gridData, loading, error, saveCell, applyRemoteChange } = useSpreadsheet(fileId);
+  const { sheets, fileName, currentSheetId, setCurrentSheetId, gridData, loading, error, saveCell, applyRemoteChange, applyRemoteStructureChange } = useSpreadsheet(fileId);
 
   // BUG FIX：用 ref 跟踪 currentSheetId，供 afterRemoveRow/Col 等回调（空依赖数组）安全读取
   const sheetIdRef = useRef(currentSheetId);
@@ -274,6 +310,24 @@ function SpreadsheetEditor({ fileId }) {
   const [fClr, setFClr] = useState('#000000');
   const [bClr, setBClr] = useState('#ffff00');
   const [panel, setPanel] = useState(null); // 'fc'|'bc'|'br'|null
+
+  const alterStructure = useCallback((type, index, amount = 1, source) => {
+    const hot = hotRef.current?.hotInstance;
+    if (!hot || index === null || index === undefined || index < 0) return false;
+
+    const actionMap = {
+      'row:delete': 'remove_row',
+      'col:delete': 'remove_col',
+      'row:insert': 'insert_row_above',
+      'col:insert': 'insert_col_start',
+    };
+    const action = actionMap[type];
+    if (!action) return false;
+
+    hot.alter(action, index, amount, source);
+    hot.render();
+    return true;
+  }, []);
 
 
   // 协作层绑定（注意：不在此处调用 clearCellStyles，样式清理由 useSpreadsheet 的 fetchCells 负责）
@@ -297,9 +351,21 @@ function SpreadsheetEditor({ fileId }) {
           }
         });
         hotRef.current?.hotInstance?.render();
+      },
+      // 远端行列结构变更回调（由 useCollaboration 触发）
+      (type, index, amount) => {
+        // 1. 同步更新 cellStyleStore 坐标映射
+        if      (type === 'row:delete') remapStylesAfterRowRemove(index, amount);
+        else if (type === 'col:delete') remapStylesAfterColRemove(index, amount);
+        else if (type === 'row:insert') remapStylesAfterRowInsert(index, amount);
+        else if (type === 'col:insert') remapStylesAfterColInsert(index, amount);
+        // 2. 通知 Handsontable 执行结构变更（source 标记为 'remote' 避免触发广播再广播）
+        if (!alterStructure(type, index, amount, 'remote')) {
+          applyRemoteStructureChange(type, index, amount);
+        }
       }
     );
-  }, [currentSheetId, applyRemoteChange]); // 移除 setCollabSheet 依赖，避免 Context re-render 导致 effect 重跑清空样式
+  }, [currentSheetId, applyRemoteChange, applyRemoteStructureChange, alterStructure]); // 移除 setCollabSheet 依赖，避免 Context re-render 导致 effect 重跑清空样式
 
   const getSelCells = useCallback(() => {
     const { r1,c1,r2,c2 } = selRef.current;
@@ -407,7 +473,9 @@ function SpreadsheetEditor({ fileId }) {
   }, [saveCell, broadcastCellChange, setSyncStatus]);
 
   // BUG FIX：删除行/列后重排 cellStyleStore 坐标，并持久化到 DB（否则切表后恢复原状）
-  const handleAfterRemoveRow = useCallback((index, amount) => {
+  const handleAfterRemoveRow = useCallback((index, amount, _, source) => {
+    // source === 'remote' 时是收到远端广播后由 onRemoteStructureChangeRef 触发的，不再二次广播
+    if (source === 'remote') return;
     remapStylesAfterRowRemove(index, amount);
     hotRef.current?.hotInstance?.render();
     // 持久化：删 DB 对应行，后续行 row_index 上移
@@ -415,14 +483,16 @@ function SpreadsheetEditor({ fileId }) {
     if (sid) deleteRowsApi(sid, index, amount).catch(err => console.error('[deleteRows]', err));
   }, []);
 
-  const handleAfterRemoveCol = useCallback((index, amount) => {
+  const handleAfterRemoveCol = useCallback((index, amount, _, source) => {
+    if (source === 'remote') return;
     remapStylesAfterColRemove(index, amount);
     hotRef.current?.hotInstance?.render();
     const sid = sheetIdRef.current;
     if (sid) deleteColsApi(sid, index, amount).catch(err => console.error('[deleteCols]', err));
   }, []);
 
-  const handleAfterCreateRow = useCallback((index, amount) => {
+  const handleAfterCreateRow = useCallback((index, amount, source) => {
+    if (source === 'remote') return;
     remapStylesAfterRowInsert(index, amount);
     hotRef.current?.hotInstance?.render();
     // 持久化：DB 中 >= index 的行 row_index 下移，为新行腾位置
@@ -430,7 +500,8 @@ function SpreadsheetEditor({ fileId }) {
     if (sid) insertRowsApi(sid, index, amount).catch(err => console.error('[insertRows]', err));
   }, []);
 
-  const handleAfterCreateCol = useCallback((index, amount) => {
+  const handleAfterCreateCol = useCallback((index, amount, source) => {
+    if (source === 'remote') return;
     remapStylesAfterColInsert(index, amount);
     hotRef.current?.hotInstance?.render();
     const sid = sheetIdRef.current;
@@ -468,10 +539,10 @@ function SpreadsheetEditor({ fileId }) {
         <TSep />
 
         {/* 插入/删除行列 */}
-        <TBtn icon={ICONS.insertRow} title="插入行"    onClick={() => hotRef.current?.hotInstance?.alter('insert_row', selRef.current.r1, 1)} />
-        <TBtn icon={ICONS.deleteRow} title="删除行"    onClick={() => hotRef.current?.hotInstance?.alter('remove_row', selRef.current.r1, 1)} />
-        <TBtn icon={ICONS.insertCol} title="插入列"    onClick={() => hotRef.current?.hotInstance?.alter('insert_col', selRef.current.c1, 1)} />
-        <TBtn icon={ICONS.deleteCol} title="删除列"    onClick={() => hotRef.current?.hotInstance?.alter('remove_col', selRef.current.c1, 1)} />
+        <TBtn icon={ICONS.insertRow} title="插入行"    onClick={() => alterStructure('row:insert', selRef.current.r1, 1)} />
+        <TBtn icon={ICONS.deleteRow} title="删除行"    onClick={() => alterStructure('row:delete', selRef.current.r1, 1)} />
+        <TBtn icon={ICONS.insertCol} title="插入列"    onClick={() => alterStructure('col:insert', selRef.current.c1, 1)} />
+        <TBtn icon={ICONS.deleteCol} title="删除列"    onClick={() => alterStructure('col:delete', selRef.current.c1, 1)} />
         <TSep />
 
         {/* 字体样式 */}
@@ -507,6 +578,30 @@ function SpreadsheetEditor({ fileId }) {
         <div style={{ position:'relative' }}>
           <TBtn icon={ICONS.border} title="单元格边框" active={panel==='br'} onClick={() => setPanel(panel==='br' ? null : 'br')} />
           {panel==='br' && <BorderPanel onApply={applyBorder} onClose={closePanel} />}
+        </div>
+        <TSep />
+
+        {/* 导出 */}
+        <div style={{ position:'relative' }}>
+          <button
+            title="导出文件"
+            style={{ ...tbSt.btn, gap:3, padding:'0 6px', width:'auto', fontSize:12, color: panel==='ex' ? '#1a73e8' : '#3c3c3c', background: panel==='ex' ? '#d0e4ff' : 'transparent' }}
+            onClick={() => setPanel(panel==='ex' ? null : 'ex')}
+          >
+            {ICONS.exportXlsx}
+            <span style={{ fontSize:12, fontWeight:500, lineHeight:1 }}>导出</span>
+            <svg viewBox="0 0 10 6" width="8" height="8" style={{ marginLeft:1, opacity:0.6 }}><path d="M0 0l5 6 5-6z" fill="currentColor"/></svg>
+          </button>
+          {panel==='ex' && (
+            <ExportPanel
+              onExcel={() => {
+                const sheetName = sheets.find(s => s.id === currentSheetId)?.name || 'Sheet1';
+                exportGridToExcel(gridData, fileName, sheetName);
+              }}
+              onCsv={() => exportGridToCSV(gridData, fileName)}
+              onClose={closePanel}
+            />
+          )}
         </div>
       </div>
 

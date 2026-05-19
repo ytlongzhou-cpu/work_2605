@@ -53,6 +53,15 @@ export async function toggleDirectoryArchive(id) {
   }
 }
 
+export async function getFileById(fileId) {
+  try {
+    const res = await axiosInstance.get(`/api/files/${fileId}`);
+    return res.data;
+  } catch (err) {
+    return toChineseError(err);
+  }
+}
+
 export async function getFiles(directoryId, includeArchived = false) {
   try {
     const params = includeArchived ? { include_archived: 1 } : {};

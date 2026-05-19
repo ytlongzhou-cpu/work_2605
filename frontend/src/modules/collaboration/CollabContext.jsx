@@ -19,8 +19,8 @@ export function CollabProvider({ children }) {
   const sheetIdRef = useRef(null);
 
   // 各种回调 ref
-  const onRemoteCellChangeRef    = useRef(null);
-  const onRemoteStyleChangeRef   = useRef(null);
+  const onRemoteCellChangeRef      = useRef(null);
+  const onRemoteStyleChangeRef     = useRef(null);
 
   const onRemoteCellChange = useCallback((row, col, value) => {
     onRemoteCellChangeRef.current?.(row, col, value);
@@ -30,14 +30,17 @@ export function CollabProvider({ children }) {
   const collab = useCollaboration(sheetId, onRemoteCellChange, sheetIdRef);
 
   // setCollabSheet：空依赖，永远是同一个函数引用
-  const setCollabSheet = useCallback((sid, cellCb, styleCb) => {
+  const setCollabSheet = useCallback((sid, cellCb, styleCb, structureCb) => {
     // 同步更新 ref（立即生效，不等 React re-render）
     sheetIdRef.current = sid;
     // 更新回调 ref
-    onRemoteCellChangeRef.current  = cellCb  || null;
-    onRemoteStyleChangeRef.current = styleCb || null;
+    onRemoteCellChangeRef.current      = cellCb      || null;
+    onRemoteStyleChangeRef.current     = styleCb     || null;
     if (collab.onRemoteStyleChangeRef) {
       collab.onRemoteStyleChangeRef.current = styleCb || null;
+    }
+    if (collab.onRemoteStructureChangeRef) {
+      collab.onRemoteStructureChangeRef.current = structureCb || null;
     }
     // 异步更新 state（触发 useCollaboration 的 room:join/leave effect）
     setSheetId(sid);
